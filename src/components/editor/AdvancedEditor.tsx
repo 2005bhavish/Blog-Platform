@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
@@ -31,37 +31,24 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({
 }) => {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const quillRef = useRef<ReactQuill>(null);
 
   const handleImageUpload = useCallback(async (file: File) => {
     if (!file) return null;
-
     setUploading(true);
+    setErrorMsg(null);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      
-      const { data, error } = await supabase.storage
-        .from('blog-images')
-        .upload(fileName, file);
-
+      const { data, error } = await supabase.storage.from('blog-images').upload(fileName, file);
       if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('blog-images')
-        .getPublicUrl(data.path);
-
-      toast({
-        title: "Image uploaded successfully!",
-        description: "Your image has been added to the post.",
-      });
-
+      const { data: { publicUrl } } = supabase.storage.from('blog-images').getPublicUrl(data.path);
+      toast({ title: "Image uploaded!", description: "Image added to post." });
       return publicUrl;
     } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      setErrorMsg(error.message);
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
       return null;
     } finally {
       setUploading(false);
@@ -71,72 +58,50 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({
   const handleFeaturedImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const url = await handleImageUpload(file);
-    if (url) {
-      onFeaturedImageChange(url);
-    }
+    if (url) onFeaturedImageChange(url);
   }, [handleImageUpload, onFeaturedImageChange]);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    
-    if (imageFiles.length > 0) {
-      const file = imageFiles[0];
-      const url = await handleImageUpload(file);
-      if (url && !featuredImage) {
-        onFeaturedImageChange(url);
-      }
-    }
+    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+    if (!files.length) return;
+    const url = await handleImageUpload(files[0]);
+    if (url && !featuredImage) onFeaturedImageChange(url);
   }, [handleImageUpload, featuredImage, onFeaturedImageChange]);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-  }, []);
-
-  const insertImageInContent = useCallback(async () => {
+  const insertImageInContent = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      
       const url = await handleImageUpload(file);
-      if (url) {
-        const imageHtml = `<img src="${url}" alt="Uploaded image" style="max-width: 100%; height: auto;" />`;
-        onContentChange(content + imageHtml);
+      if (url && quillRef.current) {
+        const quill = quillRef.current.getEditor();
+        const range = quill.getSelection();
+        quill.insertEmbed(range ? range.index : 0, 'image', url);
       }
     };
     input.click();
-  }, [handleImageUpload, content, onContentChange]);
+  }, [handleImageUpload]);
 
   const modules = {
     toolbar: {
       container: [
-        [{ 'header': [1, 2, 3, false] }],
+        [{ header: [1, 2, 3, false] }],
         ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'align': [] }],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ color: [] }, { background: [] }],
+        [{ align: [] }],
+        [{ list: 'ordered' }, { list: 'bullet' }],
         ['blockquote', 'code-block'],
         ['link', 'image'],
         ['clean']
       ],
-      handlers: {
-        image: insertImageInContent
-      }
-    },
+      handlers: { image: insertImageInContent }
+    }
   };
 
   const formats = [
@@ -147,130 +112,73 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Title Input */}
+      {/* Title */}
       <div className="space-y-2">
         <Label htmlFor="title" className="text-lg font-semibold">Title</Label>
-        <Input
-          id="title"
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="Enter your post title..."
-          className="text-lg p-4 h-auto"
-        />
+        <Input id="title" value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Enter title..." className="text-lg p-4 h-auto"/>
       </div>
 
-      {/* Featured Image Upload */}
+      {/* Featured Image */}
       <div className="space-y-4">
         <Label className="text-lg font-semibold">Featured Image</Label>
-        <div 
-          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-            dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
-          } ${featuredImage ? 'bg-muted/30' : ''}`}
+        <div
+          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'} ${featuredImage ? 'bg-muted/30' : ''}`}
           onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={e => { e.preventDefault(); setDragOver(false); }}
         >
           {featuredImage ? (
             <div className="space-y-4">
-              <img 
-                src={featuredImage} 
-                alt="Featured" 
-                className="max-w-full h-48 object-cover mx-auto rounded-lg shadow-md"
-              />
-              <Button
-                variant="outline"
-                onClick={() => onFeaturedImageChange('')}
-              >
-                Remove Image
-              </Button>
+              <img src={featuredImage} alt="Featured" className="max-w-full h-48 object-cover mx-auto rounded-lg shadow-md"/>
+              <Button variant="outline" onClick={() => onFeaturedImageChange('')}>Remove Image</Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex justify-center">
                 <div className="p-4 rounded-full bg-muted">
-                  <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  <ImageIcon className="w-8 h-8 text-muted-foreground"/>
                 </div>
               </div>
-              <div>
-                <p className="text-muted-foreground mb-2">
-                  Drag and drop an image here, or click to upload
-                </p>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFeaturedImageUpload}
-                  className="hidden"
-                  id="featured-upload"
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => document.getElementById('featured-upload')?.click()}
-                  disabled={uploading}
-                  className="gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  {uploading ? 'Uploading...' : 'Choose Image'}
-                </Button>
-              </div>
+              <p className="text-muted-foreground mb-2">Drag & drop or click to upload</p>
+              <Input type="file" accept="image/*" onChange={handleFeaturedImageUpload} className="hidden" id="featured-upload"/>
+              <Button variant="outline" onClick={() => document.getElementById('featured-upload')?.click()} disabled={uploading} className="gap-2">
+                <Upload className="w-4 h-4"/> {uploading ? 'Uploading...' : 'Choose Image'}
+              </Button>
             </div>
           )}
         </div>
+        {errorMsg && <p className="text-red-500 text-sm mt-2">{errorMsg}</p>}
       </div>
 
-      {/* Excerpt Input */}
+      {/* Excerpt */}
       <div className="space-y-2">
         <Label htmlFor="excerpt" className="text-lg font-semibold">Excerpt</Label>
-        <Input
-          id="excerpt"
-          value={excerpt}
-          onChange={(e) => onExcerptChange(e.target.value)}
-          placeholder="A brief description of your post..."
-          className="p-3"
-        />
+        <Input id="excerpt" value={excerpt} onChange={e => onExcerptChange(e.target.value)} placeholder="Brief description..." className="p-3"/>
       </div>
 
       {/* Content Editor */}
       <div className="space-y-2">
         <Label className="text-lg font-semibold">Content</Label>
-        <div className="border rounded-lg overflow-hidden bg-background">
-          <ReactQuill
-            theme="snow"
-            value={content}
-            onChange={onContentChange}
-            modules={modules}
-            formats={formats}
-            placeholder="Start writing your story..."
-            style={{
-              height: '400px',
-              marginBottom: '42px'
-            }}
-          />
-        </div>
+        <ReactQuill
+          ref={quillRef}
+          theme="snow"
+          value={content}
+          onChange={onContentChange}
+          modules={modules}
+          formats={formats}
+          placeholder="Write your story..."
+          className="bg-white text-black min-h-[300px]"
+        />
       </div>
 
-      {/* Quick Formatting Tips */}
+      {/* Formatting Tips */}
       <div className="bg-muted/30 rounded-lg p-4">
-        <h4 className="font-semibold mb-3 flex items-center gap-2">
-          <Quote className="w-4 h-4" />
-          Formatting Tips
-        </h4>
+        <h4 className="font-semibold mb-3 flex items-center gap-2"><Quote className="w-4 h-4"/> Tips</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Bold className="w-3 h-3" />
-            <span>Ctrl+B for bold</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Italic className="w-3 h-3" />
-            <span>Ctrl+I for italic</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <List className="w-3 h-3" />
-            <span>Lists & bullets</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link2 className="w-3 h-3" />
-            <span>Add links</span>
-          </div>
+          <div className="flex items-center gap-2"><Bold className="w-3 h-3"/> Ctrl+B</div>
+          <div className="flex items-center gap-2"><Italic className="w-3 h-3"/> Ctrl+I</div>
+          <div className="flex items-center gap-2"><List className="w-3 h-3"/> Lists</div>
+          <div className="flex items-center gap-2"><Link2 className="w-3 h-3"/> Links</div>
         </div>
       </div>
     </div>
