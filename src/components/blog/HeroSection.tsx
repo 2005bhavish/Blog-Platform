@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PenTool, Users, Sparkles, ArrowRight, Play } from "lucide-react";
-import heroImage from "@/assets/hero-blog.jpg";
+import heroImage from "@/assets/hero-blog.png";
 
 const HeroSection = () => {
   return (
