@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { PenTool, Users, Sparkles, ArrowRight, Play } from "lucide-react";
+import { PenTool, Users, Sparkles, ArrowRight, Play, Plus } from "lucide-react";
 import heroImage from "@/assets/hero-blog.png";
 
 const HeroSection = () => {
@@ -53,9 +53,9 @@ const HeroSection = () => {
                   </Link>
                 </Button>
                 <Button variant="outline" size="lg" className="group" asChild>
-                  <Link to="/about">
-                    <Play className="w-4 h-4 mr-2" />
-                    Watch Demo
+                  <Link to="/create">
+                  <Plus className="w-4 h-4 mr-2" />
+                    Write a post
                   </Link>
                 </Button>
               </div>
