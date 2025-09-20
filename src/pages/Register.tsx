@@ -120,7 +120,7 @@ const Register = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Google Register */}
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 className="w-full" 
                 size="lg"
@@ -134,9 +134,9 @@ const Register = () => {
                   <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
                 Continue with Google
-              </Button>
+              </Button> */}
 
-              <div className="relative">
+              {/* <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <Separator className="w-full" />
                 </div>
@@ -145,7 +145,7 @@ const Register = () => {
                     Or continue with email
                   </span>
                 </div>
-              </div>
+              </div> */}
 
               {/* Email/Password Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
